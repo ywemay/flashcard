@@ -1,0 +1,30 @@
+.card .original {
+  font-size: 36pt;
+}
+.card {
+  text-align: center;
+  padding: 20pt;
+}
+.card .transcript{
+  color: gray;
+}
+.card .translation {
+  color: green;
+}
+
+.hidden-element {
+  display: none;
+}
+
+.views-count a{
+  padding: 5pt 17pt;
+  background: lightslategray;
+  color: white;
+  border-radius: 8pt;
+}
+#btn-next {
+  float: right;
+}
+.card-status {
+  clear: both;
+}

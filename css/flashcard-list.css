@@ -1,0 +1,73 @@
+.flashcard {
+  display: inline-block;
+  width: 30%;
+  min-width: 200pt;
+  border: 1px solid;
+  margin: 3pt;
+  padding: 5pt;
+  text-align: center;
+}
+.flashcard-original {
+  font-size: 16pt;
+}
+.flashcard-transcript {
+  color: gray;
+}
+.flashcard-translation {
+  color: green;
+}
+.flashcard-play-btn {
+  border: 1px solid darkgoldenrod;
+  padding: 3pt;
+  border-radius: 13pt;
+  color: white;
+  background: lightsalmon;
+  cursor: context-menu;
+}
+.flashcard-hide-button {
+  color: white;
+  background: gray;
+  border-radius: 6pt;
+  text-decoration: none;
+}
+.flashcard-hide-button.flashcard-hidden {
+  color: white;
+  background: red;
+  text-decoration: none;
+}
+.flashcard-hide-button:hover{
+  text-decoration: none;
+}
+.play,
+.delete,
+.record,
+.flashcard-user-data a{
+  font-size: 18pt;
+  padding: 2pt 4pt;
+  cursor: default;
+}
+.flashcard-writereview-enabled,
+.flashcard-audioreview-enabled {
+  background: green;
+  border-radius: 6pt;
+}
+.flashcard-writereview-button {
+  color: gray;
+}
+.flashcard-writereview-enabled {
+  color: white;
+}
+.flashcard-hide-button:visited,
+.flashcard-hide-button:hover,
+.flashcard-writereview-enabled:visited,
+.flashcard-writereview-enabled:hover {
+  color: white;
+  text-decoration: none;
+}
+.recording {
+  background: red;
+  border-radius: 6pt;
+}
+.recording-hide {
+  display: none;
+}

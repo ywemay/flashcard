@@ -1,0 +1,107 @@
+<?php
+
+/**
+ * Invoke hook_schema().
+ */
+function flashcard_schema() {
+  $schema['flashcard'] = array(
+    'description' => 'Flashcards repozitory',
+    'fields' => array(
+      'cid' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Card id',
+      ),
+      'original' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Original text to learn.',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'transcript' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Transcription of the text that explains pronounciation',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'translation' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Explanation, translation of the text.',
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'sound' => array(
+        'type' => 'varchar',
+        'length' => 150,
+        'description' => 'Sound file name',
+      ),
+    ),
+    'primary key' => array('cid'),
+  );
+
+  $schema['flashcard_user_data'] = array(
+    'description' => 'User learning statistics.',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'User ID',
+      ),
+      'cid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'Card id',
+      ),
+      'views_count' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'Number of times user viewed the card.',
+      ),
+      'hide' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'tiny', // tiny / small / medium / normal / big
+        'description' => 'Flag that shows if card is hidden or not.',
+      ),
+      'audioreview' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'tiny', // tiny / small / medium / normal / big
+        'description' => 'Flag that shows if card is hidden or not.',
+      ),
+      'writereview' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'tiny', // tiny / small / medium / normal / big
+        'description' => 'Flag that shows if card is hidden or not.',
+      ),
+      'data' => array(
+        'type' => 'blob',
+        'not null' => FALSE,
+        'size' => 'big',
+        'serialize' => TRUE,
+        'description' => 'A serialized array of additional data.',
+      ), 
+    ),
+    'primary key' => array('uid','cid'),
+  );
+  return $schema;
+}

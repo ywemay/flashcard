@@ -1,0 +1,825 @@
+<?php
+
+/**
+ * Invoke hook_permission().
+ */
+function flashcard_permission() {
+  return array(
+    'flashcard learn' => array(
+      'title' => t('Learn using flashcards'),
+      'description' => t('Allow users to use flashcards to learn'),
+    ),
+    'flashcard import' => array(
+      'title' => t('Use import'),
+      'description' => t('Allow user to import flashcards from files'),
+    ),
+  );
+}
+
+/**
+ * Invoke hook_menu().
+ */
+function flashcard_menu() {
+
+  $items['flashcard'] = array(
+    'title' => t('Flashcards'),
+    'page callback' => 'flashcard_list',
+    'access arguments' => array('flashcard list'),
+    'menu_name' => 'main-menu',
+    'weight' => 100,
+  );
+
+  $items['flashcard/import'] = array(
+    'title' => t('Import flashcards'),
+    'page callback' => 'flashcard_show_imports',
+    'access arguments' => array('flashcard import'),
+    'menu_name' => 'main-menu',
+    'weight' => 130,
+  );
+
+  $items['flashcard/import/%'] = array(
+    'title' => t('Process import file'),
+    'page callback' => 'flashcard_process_import',
+    'page arguments' => array(2),
+    'access arguments' => array('flashcard import'),
+  );
+
+  $items['flashcard/train'] = array(
+    'page callback' => 'flashcard_train',
+    'access arguments' => array('flashcard learn'),
+    'menu_name' => 'main-menu',
+    'weight' => 200,
+  );
+
+  $items['flashcard/mp3script'] = array(
+    'title' => 'Mp3 Script',
+    'description' => 'Script builder for linux command line to generate mp3 files for audio listenning',
+    'access arguments' => array('flashcard learn'),
+    'page callback' => 'flashcard_mp3_script',
+    'menu_name' => 'main-menu',
+    'weight' => 250,
+  );
+
+  $items['flashcard/toggle/hide/nojs/%'] = array(
+    'description' => 'Toggles hidde/show state of the flashcard',
+    'page callback' => 'flashcard_toggle_hide',
+    'page arguments' => array(3, 4),
+    'access arguments' => array('flashcard learn'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['flashcard/toggle/hide/ajax/%'] = array(
+    'delivery callback' => 'ajax_deliver',
+  ) + $items['flashcard/toggle/hide/nojs/%'];
+
+  $items['flashcard/toggle/audioreview/nojs/%'] = array(
+    'description' => 'Toggles audio review state of the flashcard',
+    'page callback' => 'flashcard_toggle_audioreview',
+    'page arguments' => array(3, 4),
+    'access arguments' => array('flashcard learn'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['flashcard/toggle/audioreview/ajax/%'] = array(
+    'delivery callback' => 'ajax_deliver',
+  ) + $items['flashcard/toggle/audioreview/nojs/%'];
+
+  $items['flashcard/toggle/writereview/nojs/%'] = array(
+    'description' => 'Toggles write review state of the flashcard',
+    'page callback' => 'flashcard_toggle_writereview',
+    'page arguments' => array(3, 4),
+    'access arguments' => array('flashcard learn'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['flashcard/toggle/writereview/ajax/%'] = array(
+    'delivery callback' => 'ajax_deliver',
+  ) + $items['flashcard/toggle/writereview/nojs/%'];
+
+  $items['flashcard/delete/recording/nojs/%'] = array(
+    'description' => 'Deletes the user specific recording file.',
+    'page callback' => 'flashcard_delete_recording',
+    'page arguments' => array(3, 4),
+    'access arguments' => array('flashcard learn'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['flashcard/delete/recording/ajax/%'] = array(
+    'delivery callback' => 'ajax_deliver',
+  ) + $items['flashcard/delete/recording/nojs/%'];
+
+  $items['flashcard/audioupload'] = array(
+    'description' => 'Handles recorder on page and uploaded files.',
+    'page callback' => 'flashcard_upload_audio',
+    'access arguments' => array('flashcard learn'),
+  );
+
+  return $items;
+  
+}
+
+/**
+ * Function flashcard_create().
+ */
+function flashcard_create() {
+  return (object) array(
+    'original' => '',
+    'transcript' => '',
+    'translation' => '',
+    'sound' => '',
+  );
+}
+
+/**
+ * Invoke hook_theme().
+ */
+function flashcard_theme($existing, $type, $theme, $path) {
+  return [
+    'flashcard_display' => [
+      'variables' => [
+        'card' => NULL,
+        'nextCard' => NULL,
+        'settings' => NULL,
+      ],
+      'render element' => 'element',
+      'template' => 'flashcard-display',
+    ],
+    'flashcard_list' => [
+      'variables' => [
+        'rows' => array(),
+        'recdir' => '',
+      ],
+      'render element' => 'element',
+      'template' => 'flashcard-list',
+    ],
+  ];
+}
+
+/**
+ * Function flashcard_load_stats().
+ */
+function flashcard_load_stats($cid) {
+  global $user;
+  $stats = (object) array(
+    'cid' => $cid,
+    'uid' => $user->uid,
+    'views_count' => 0,
+    'hide' => 0,
+    'data' => serialize(array()),
+  );
+  $query = db_select('flashcard_user_data', 't')
+    ->fields('t')
+    ->condition('t.uid', $user->uid)
+    ->condition('t.cid', $cid);
+  $result = $query->execute();
+  $result = $result->fetchObject();
+  if ($result) {
+    $stats = $result;
+  }
+  return $stats;
+}
+
+/**
+ * Function flashcard_save_stats().
+ */
+function flashcard_save_stats($stats) {
+  global $user;
+  $rez = db_select('flashcard_user_data', 't')
+    ->fields('t', array('cid'))
+    ->condition('cid', $stats->cid)
+    ->condition('uid', $user->uid)
+    ->execute()->fetchObject();
+  if (!drupal_write_record('flashcard_user_data', $stats, $rez ? ['cid', 'uid'] : array())) {
+    drupal_set_message(t('Failed to save statistics for flashcard @cid', array('@cid' => $stats->cid)));
+  }
+}
+
+/**
+ * Function flashcard_hide().
+ */
+function flashcard_hide($cid) {
+  $stats = flashcard_load_stats($cid);
+  if ($stats) {
+    $stats->hide = 1;
+    flashcard_save_stats($stats);
+  }
+}
+
+/**
+ * Function flashcard_audio_review().
+ */
+function flashcard_audio_review($cid) {
+  $stats = flashcard_load_stats($cid);
+  if ($stats) {
+    $stats->audioreview = 1;
+    flashcard_save_stats($stats);
+  }
+}
+
+/**
+ * Function flashcard_audio_review().
+ */
+function flashcard_write_review($cid) {
+  $stats = flashcard_load_stats($cid);
+  if ($stats) {
+    $stats->writereview = 1;
+    flashcard_save_stats($stats);
+  }
+}
+
+/**
+ * Function flashcard_train().
+ */
+function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
+  $build = array();
+
+  global $user;
+  drupal_set_breadcrumb(array());
+
+  $set_key = 'flashcard_' . $user->uid . '_play';
+  $set = variable_get($set_key, array());
+  $set += array(
+    'autoplay' => FALSE,
+  );
+
+  $stats = flashcard_load_stats($cid);
+  if ($stats) {
+    $stats->views_count++;
+    flashcard_save_stats($stats);
+  }
+
+  if ($cmd == 'h') {
+    flashcard_hide($arg);
+  }
+  elseif ($cmd == 'a') {
+    drupal_set_message(t('Card @cid added to audio review group.', array('@cid' => $arg)));
+    flashcard_audio_review($arg);
+  }
+  elseif ($cmd == 'w') {
+    drupal_set_message(t('Card @cid added to write review group.', array('@cid' => $arg)));
+    flashcard_write_review($arg);
+  }
+  elseif ($cmd == 'aw') {
+    drupal_set_message(t('Card @cid added to audio and write review groups.', array('@cid' => $arg)));
+    flashcard_audio_review($arg);
+    flashcard_write_review($arg);
+  }
+  // trigger autoplay
+  elseif ($cmd == 't') {
+    $set['autoplay'] = !$set['autoplay'];
+    variable_set($set_key, $set);
+  }
+
+  $modpath = drupal_get_path('module', 'flashcard');
+  $soundpath = $modpath . '/audio';
+
+  $build['#attached']['js'][] = array(
+    'type' => 'file',
+    'data' => $modpath . '/js/flashcard.js',
+  );
+  $build['#attached']['css'][] = array(
+    'type' => 'file',
+    'data' => $modpath . '/css/flashcard.css',
+  );
+
+  $default = array(
+    'current' => 1,
+  );
+  $settings = variable_get('flashcard_' . $user->uid, $default);
+  $settings += $default;
+
+  $query = db_select('flashcard', 't');
+  $query->fields('t');
+  $query->condition('t.cid', $cid);
+  $result = $query->execute();
+  $card = $result->fetchObject();
+
+  $toReplace = array("/^\[(sound\:)/", "/\]$/");
+  $card->sound = $soundpath . '/' . preg_replace($toReplace, '', trim($card->sound));
+  
+  $rows = array();
+
+  //decide the next card to show:
+  $query = db_select('flashcard', 't');
+  $query->fields('t', array('cid'));
+  $query->leftJoin('flashcard_user_data', 'd', 't.cid=d.cid');
+  $and = db_and()->condition('d.uid', $user->uid)->condition('d.hide', 0);
+  $or = db_or()->condition('d.cid', NULL)->condition($and);
+  $query->condition($or);
+  $query->condition('t.cid', $cid, '>');
+  $query->range(0,1);
+  $query->orderBy('t.cid');
+  $rez = $query->execute();
+  $nextCard = $rez->fetchObject();
+
+  $build['flashcard'] = array(
+    '#theme' => 'flashcard_display',
+    '#card' => $card,
+    '#nextCard' => $nextCard,
+    '#settings' => (object) $set,
+    'nothing' => NULL,
+  );
+
+  return $build;
+}
+
+/**
+ * Function flashcard_mp3_script().
+ */
+function flashcard_mp3_script() {
+
+  $outdir = 'public://flashcard/mp3out'; 
+  file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
+  $outdir = drupal_realpath($outdir);
+
+  global $user;
+
+  $query = db_select('flashcard', 't');
+  $query->fields('t', array('sound'));
+  $query->leftJoin('flashcard_user_data', 'd', 't.cid=d.cid');
+  $and = db_and()->condition('d.uid', $user->uid)->condition('d.hide', 0);
+  $or = db_or()->condition('d.cid', NULL)->condition($and);
+  $query->condition($or);
+  //$query->range(0,1);
+  $rez = $query->execute();
+
+  $modpath = drupal_get_path('module', 'flashcard');
+  $soundpath = $modpath . '/audio';
+
+  $toReplace = array("/^\[(sound\:)/", "/\]$/");
+  $rzArray = array();
+  $count = 0;
+  while($card = $rez->fetchObject()) {
+    $card->sound = preg_replace($toReplace, '', trim($card->sound));
+    $rzArray[$count][] = $card->sound;
+    if (count($rzArray[$count]) >= 50) $count++;
+  }
+
+  $batch = array(
+    'operations' => array(),
+    'finished' => 'flashcard_mp3_create_finished',
+    'title' => t('Create mp3 file for listenning.'),
+    'init_message' => t('Mp3 creation is starting'),
+    'process_message' => t('Processed @current out of @total.'),
+    'error_message' => t('Import has encountered an error.'),
+  );
+
+  $progress = 0;
+  $limit = 1;
+  $max = count($rzArray)-1;
+  while ($progress <=$max) {
+    $outputFname = $outdir . '/' . sprintf("%'.04d", $progress) . '.mp3';
+    $command = 'cd "' . $soundpath . '" && ffmpeg -i "concat:' . implode("|", $rzArray[$progress]) . '" -acodec copy ' . $outputFname;
+    $batch['operations'][] = array('flashcard_mp3_create', array($command, $progress, $limit));
+    $progress = $progress + $limit;
+  }
+
+  batch_set($batch);
+  batch_process('flashcard');
+}
+
+/**
+ * Function flashcard_mp3_create().
+ */
+function flashcard_mp3_create($command, $progress, $limit, &$context) {
+  `$command`;
+  $progress = $progress+$limit;
+  $context['message'] = 'Now processings ' . $progress . ' - ' . $context['results'][0] . ' imported';
+}
+
+/**
+ * Function flashcard_mp3_creation_finished().
+ */
+function flashcard_mp3_creation_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message('Mp3 Creation is complete. Check private://flashcard/mp3out directory');
+  }
+  else {
+    $error_operation = reset($operations);
+    $message = t('An error occured while processing %error_operation %error_operation with arguments: @arguments', array(
+            '%error_operation' => $error_operation[0],
+            '@arguments' => print_r($error_operation[1], TRUE)
+    ));
+    drupal_set_message($message, 'error');
+  }
+  
+}
+
+/**
+ * Function flashcard_show_imports().
+ */
+function flashcard_show_imports() {
+  $build['info'] = array(
+    '#markup' => 'Flashcards inport',
+  );
+
+  $path = drupal_get_path('module', 'flashcard') . '/data';
+  $files = glob($path . "/*.txt");
+
+  foreach($files as $i=>$f) {
+    $f = basename($f, '.txt');
+    $build['line_' . $i] = array(
+      "#markup" => '<p>' . l($f, 'flashcard/import/' . $f) . '</p>',
+    );
+  }
+
+  return $build;
+}
+
+/**
+ * Function flashcard_process_import().
+ */
+function flashcard_process_import($fname) {
+  $build = array();
+
+  $fname = drupal_get_path('module', 'flashcard') . '/data/' . $fname . '.txt';
+  $fname = drupal_realpath($fname);
+  $lines = file($fname);
+  if (!$lines) {
+    $build = array('#markup' => 'Nothing to import from file ' . $fname);
+    return $Build;
+  }
+
+  $batch = array(
+    'operations' => array(),
+    'finished' => 'flashcard_process_import_finished',
+    'title' => t('Import from file @fname', array('@fname' => basename($fname, '.txt'))),
+    'init_message' => t('Import is starting'),
+    'process_message' => t('Processed @current out of @total.'),
+    'error_message' => t('Import has encountered an error.'),
+  );
+
+  $progress = 0;
+  $limit = 50;
+  $max = count($lines);
+  while ($progress <=$max) {
+    $batch['operations'][] = array('flashcard_import_cards', array($fname, $progress, $limit));
+    $progress = $progress + $limit;
+  }
+
+  batch_set($batch);
+  batch_process('flashcard/import');
+  //return $build;
+}
+
+/**
+ * Function flashcard_import_cards().
+ */
+function flashcard_import_cards($fname, $progress, $limit, &$context) {
+  
+  $lines = file($fname);
+  for($i = $progress; $i<=$progress+$limit; $i++){
+    $parts = explode("\t", trim($lines[$i]));
+    list($translation, $transcript, $original, $sound) = $parts;
+    $soud = preg_replace(array("/^\[/", "/\]$/"), '', $sound);
+    $query = db_select('flashcard', 't')
+      ->fields('t', array('cid'));
+    $query->condition('t.original', $original);
+    $result = $query->execute();
+    if (!$result->fetchAssoc()) {
+      $query = db_insert('flashcard')
+        ->fields(array(
+          'original' => $original,  
+          'transcript' => $transcript,
+          'translation' => $translation,
+          'sound' => $sound,
+        ));
+      $query->execute();
+    }
+  }
+  $progress = $progress+$limit;
+  $context['message'] = 'Now processings ' . $progress . ' - ' . $context['results'][0] . ' imported';
+}
+
+/**
+ * Function flashcard_process_import_finished().
+ */
+function flashcard_process_import_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message('Import is complete');
+  }
+  else {
+    $error_operation = reset($operations);
+    $message = t('An error occured while processing %error_operation %error_operation with arguments: @arguments', array(
+            '%error_operation' => $error_operation[0],
+            '@arguments' => print_r($error_operation[1], TRUE)
+    ));
+    drupal_set_message($message, 'error');
+  }
+}
+
+/**
+ * Function flashcard_list().
+ */
+function flashcard_list() {
+
+  global $user;
+
+  drupal_add_library('system', 'drupal.ajax');
+
+  $recDir = 'public://flashcard/recordings/' . $user->uid; 
+  file_prepare_directory($recDir, FILE_CREATE_DIRECTORY);
+  $recPath = file_create_url($recDir);
+  $recDir = drupal_realpath($recDir);
+
+  $build = array();
+  
+  $query = db_select('flashcard', 't')
+    ->extend('PagerDefault');
+  
+  $query->leftJoin('flashcard_user_data', 'd', 't.cid=d.cid');
+  //$and = db_and()->condition('d.uid', $user->uid);
+  //$and->condition('d.hide', 0);
+  //$or = db_or()->condition('d.cid', NULL)->condition($and);
+  //$query->condition($or);
+  $query->fields('t', array());
+  $query->fields('d', array('views_count', 'hide', 'audioreview', 'writereview'));
+  
+  $result = $query
+      ->limit(30)
+      ->orderBy('t.cid')
+      ->execute();
+  
+  $rows = array();
+  foreach ($result as $row) {
+    $row->hide_link = flashcard_get_toggle_hide_link($row->cid, $row->hide);
+    $row->audioreview_link = flashcard_get_toggle_audioreview_link($row->cid, $row->audioreview);
+    $row->writereview_link = flashcard_get_toggle_writereview_link($row->cid, $row->writereview);
+
+    $recFile = $recDir . '/' . $row->cid . '.mp3';
+    $row->recording = file_exists($recFile) ? $row->cid : 0;
+    $row->delete_recording_link = flashcard_get_delete_recording_link($row->cid, $row->recording);
+    $rows[$row->cid] = $row;
+  }
+
+  $modpath = drupal_get_path('module', 'flashcard');
+  
+  $build['#attached']['js'][] = array(
+    'type' => 'file',
+    'data' => $modpath . '/js/flashcard.list.js',
+  );
+  $build['#attached']['css'][] = array(
+    'type' => 'file',
+    'data' => $modpath . '/css/flashcard-list.css',
+  );
+
+  $build['flashcards_list'] = array(
+    '#theme' => 'flashcard_list',
+    '#rows' => $rows,
+    '#empty' => t('There are no records found in the db'),
+    '#recdir' => $recPath,
+  );
+  
+  $build['pager_pager'] = array(
+    '#theme' => 'pager',
+  );
+
+  return $build;
+}
+
+/**
+ * Function flashcard_get_toggle_hide_link().
+ */
+function flashcard_get_toggle_hide_link($cid, $hide) {
+  $query = array(
+    'thok' => drupal_get_token('flashcard_toggle_hide' . $cid),
+  ) + drupal_get_destination();
+  return l('&#128065;', 'flashcard/toggle/hide/nojs/' . $cid, array(
+    'query' => $query, 
+    'html' => TRUE,
+    'attributes' => array(
+      'id' => 'flashcard-toogle-hide-link-' . $cid,
+      'class' => array('use-ajax flashcard-hide-button', $hide ? 'flashcard-hidden' : 'flashcard-shown'),
+    )
+  ));
+}
+
+/**
+ * Function flashcard_get_toggle_audioreview_link().
+ */
+function flashcard_get_toggle_audioreview_link($cid, $value) {
+  $query = array(
+    'taok' => drupal_get_token('flashcard_toggle_audioreview' . $cid),
+  ) + drupal_get_destination();
+
+  $classes = ['use-ajax', 'flashcard-audioreview-button'];
+  if ($value) {
+    $classes[] = 'flashcard-audioreview-enabled';
+  }
+  return l('&#128266;', 'flashcard/toggle/audioreview/nojs/' . $cid, array(
+    'query' => $query, 
+    'html' => TRUE,
+    'attributes' => array(
+      'id' => 'flashcard-toogle-audio-link-' . $cid,
+      'class' => $classes,
+    )
+  ));
+  
+}
+
+/**
+ * Function flashcard_get_toggle_writereview_link().
+ */
+function flashcard_get_toggle_writereview_link($cid, $value) {
+  $query = array(
+    'twok' => drupal_get_token('flashcard_toggle_writereview' . $cid),
+  ) + drupal_get_destination();
+
+  $classes = ['use-ajax', 'flashcard-writereview-button'];
+  if ($value) {
+    $classes[] = 'flashcard-writereview-enabled';
+  }
+  return l('&#x270E;', 'flashcard/toggle/writereview/nojs/' . $cid, array(
+    'query' => $query, 
+    'html' => TRUE,
+    'attributes' => array(
+      'id' => 'flashcard-toogle-write-link-' . $cid,
+      'class' => $classes,
+    )
+  ));
+  
+}
+
+/**
+ * Function flashcard_toggle_hide().
+ */
+function flashcard_toggle_hide($ajax, $cid) {
+
+  $is_ajax = $ajax === 'ajax';
+
+  if (empty($_GET['thok']) || !drupal_valid_token($_GET['thok'], 'flashcard_toggle_hide' . $cid)) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $stats = flashcard_load_stats($cid);
+  $stats->hide = $stats->hide == 1 ? 0 : 1;
+  flashcard_save_stats($stats);
+
+  if ($is_ajax) {
+    $commands = array();
+    $commands[] = ajax_command_invoke('#flashcard-toogle-hide-link-' . $cid,
+      'toggleClass', array('flashcard-hidden', $stats->hide));
+    //$commands[] = ajax_command_replace('#flashcard-toggle-hide-link-' . $cid,
+      //flashcard_get_toggle_hide_link($cid, $stats->hide) . ' repl');
+    return array(
+      '#type' => 'ajax',
+      '#commands' => $commands,
+    );
+  }
+  else {
+    $build['message']['#markup'] = 'Card ' . $cid . ($stats->hide ? ' set to hidden' : ' set to shown');
+    return $build;
+  }
+}
+
+/**
+ * Function flashcard_toggle_audioreview().
+ */
+function flashcard_toggle_audioreview($ajax, $cid) {
+
+  $is_ajax = $ajax === 'ajax';
+
+  if (empty($_GET['taok']) || !drupal_valid_token($_GET['taok'], 'flashcard_toggle_audioreview' . $cid)) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $stats = flashcard_load_stats($cid);
+  $stats->audioreview = $stats->audioreview == 1 ? 0 : 1 ;
+  flashcard_save_stats($stats);
+
+  $stats = flashcard_load_stats($cid);
+
+  if ($is_ajax) {
+    $commands = array();
+    $commands[] = ajax_command_invoke('#flashcard-toogle-audio-link-' . $cid,
+      'toggleClass', array('flashcard-audioreview-enabled', $stats->audioreview));
+    //$commands[] = ajax_command_replace('#flashcard-toggle-hide-link-' . $cid,
+      //flashcard_get_toggle_hide_link($cid, $stats->hide) . ' repl');
+    return array(
+      '#type' => 'ajax',
+      '#commands' => $commands,
+    );
+  }
+  else {
+    $build['message']['#markup'] = 'Card ' . $cid . ($stats->audioreview ? ' set to audioreview' : 'un-set from audioreview');
+    return $build;
+  }
+}
+
+/**
+ * Function flashcard_toggle_writereview().
+ */
+function flashcard_toggle_writereview($ajax, $cid) {
+
+  $is_ajax = $ajax === 'ajax';
+
+  if (empty($_GET['twok']) || !drupal_valid_token($_GET['twok'], 'flashcard_toggle_writereview' . $cid)) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $stats = flashcard_load_stats($cid);
+  $stats->writereview = $stats->writereview == 1 ? 0 : 1;
+  flashcard_save_stats($stats);
+
+  if ($is_ajax) {
+    $commands = array();
+    $commands[] = ajax_command_invoke('#flashcard-toogle-write-link-' . $cid,
+      'toggleClass', array('flashcard-writereview-enabled', $stats->writereview));
+    //$commands[] = ajax_command_replace('#flashcard-toggle-hide-link-' . $cid,
+      //flashcard_get_toggle_hide_link($cid, $stats->hide) . ' repl');
+    return array(
+      '#type' => 'ajax',
+      '#commands' => $commands,
+    );
+  }
+  else {
+    $build['message']['#markup'] = 'Card ' . $cid . ($stats->writereview ? ' set to hidden' : ' set to shown');
+    return $build;
+  }
+}
+
+/**
+ * Function flashcard_get_delete_recording_link().
+ */
+function flashcard_get_delete_recording_link($cid, $value) {
+  $query = array(
+    'tok' => drupal_get_token('flashcard_delete_recording' . $cid),
+  ) + drupal_get_destination();
+
+  $classes = ['use-ajax delete'];
+  if (!$value) {
+    $classes[] = 'recording-hide';
+  }
+  return l('&Cross;', 'flashcard/delete/recording/nojs/' . $cid, array(
+    'query' => $query, 
+    'html' => TRUE,
+    'attributes' => array(
+      'class' => $classes,
+    )
+  ));
+  
+}
+
+/**
+ * Function flashcard_delete_recording().
+ */
+function flashcard_delete_recording($ajax, $cid) {
+
+  $is_ajax = $ajax === 'ajax';
+
+  if (empty($_GET['tok']) || !drupal_valid_token($_GET['tok'], 'flashcard_delete_recording' . $cid)) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  global $user;
+
+  $outdir = 'public://flashcard/recordings/' . $user->uid; 
+  file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
+  $outdir = drupal_realpath($outdir);
+  $fname = $outdir . '/' . $cid . '.mp3';
+  if (file_exists($fname)) {
+    unlink($fname);
+  }
+
+  if ($is_ajax) {
+    $commands = array();
+    $commands[] = ajax_command_invoke('.flashcard-' . $cid . ' .play',
+      'toggleClass', array('recording-hide', 0));
+    $commands[] = ajax_command_invoke('.flashcard-' . $cid . ' .delete',
+      'toggleClass', array('recording-hide', 0));
+    //$commands[] = ajax_command_replace('#flashcard-toggle-hide-link-' . $cid,
+      //flashcard_get_toggle_hide_link($cid, $stats->hide) . ' repl');
+    return array(
+      '#type' => 'ajax',
+      '#commands' => $commands,
+    );
+  }
+  else {
+    $build['message']['#markup'] = 'Recording ' . $cid . ' deleted...';
+    return $build;
+  }
+}
+
+/**
+ * Function flashcard_upload_audio().
+ */
+function flashcard_upload_audio() {
+  global $user;
+  $outdir = 'public://flashcard/recordings/' . $user->uid; 
+  file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
+  $outdir = drupal_realpath($outdir);
+
+  $data = print_r($_FILES, true);
+
+  $success = FALSE;
+  if (!empty($_FILES) && isset($_FILES['audiofile'])) {
+    $f = (object) $_FILES['audiofile'];
+    $success = copy($f->tmp_name, $outdir . '/' . $f->name);
+  }
+
+  $out = array(
+    'success' => $success ? 1 : 0,
+  );
+  drupal_json_output($out);
+
+}
