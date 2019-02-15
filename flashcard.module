@@ -115,7 +115,6 @@ function flashcard_menu() {
   );
 
   return $items;
-  
 }
 
 /**
@@ -328,19 +327,21 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
  */
 function flashcard_mp3_script() {
 
+  global $user;
+
   $outdir = 'public://flashcard/mp3out'; 
   file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
   $outdir = drupal_realpath($outdir);
 
-  global $user;
+  $recdir = 'public://flashcard/recordings/' . $user->uid; 
+  $recdir = drupal_realpath($recdir);
 
-  $query = db_select('flashcard', 't');
-  $query->fields('t', array('sound'));
-  $query->leftJoin('flashcard_user_data', 'd', 't.cid=d.cid');
-  $and = db_and()->condition('d.uid', $user->uid)->condition('d.hide', 0);
-  $or = db_or()->condition('d.cid', NULL)->condition($and);
-  $query->condition($or);
-  //$query->range(0,1);
+  $query = db_select('flashcard_user_data', 'd');
+  $query->leftJoin('flashcard', 'c', 'd.cid=c.cid');
+  $query->fields('c', array('cid', 'sound'));
+  $query->condition('d.uid', $user->uid);
+  $query->condition('d.audioreview', 1);
+  $query->orderBy('d.cid');
   $rez = $query->execute();
 
   $modpath = drupal_get_path('module', 'flashcard');
@@ -351,8 +352,18 @@ function flashcard_mp3_script() {
   $count = 0;
   while($card = $rez->fetchObject()) {
     $card->sound = preg_replace($toReplace, '', trim($card->sound));
+
     $rzArray[$count][] = $card->sound;
-    if (count($rzArray[$count]) >= 50) $count++;
+    $recordFile = $recdir . '/' . $card->cid . '.mp3';
+    if (file_exists($recordFile)) {
+      $rzArray[$count][] = $recordFile;
+      $rzArray[$count][] = $card->sound;
+    }
+    $rzArray[$count][] = $card->sound;
+
+    if (count($rzArray[$count]) >= 50){
+      $count++;
+    }
   }
 
   $batch = array(
@@ -366,10 +377,14 @@ function flashcard_mp3_script() {
 
   $progress = 0;
   $limit = 1;
+
+  $options ="-vn -ar 44100 -ac 2 -ab 192k -f mp3";
+  $options ="-vn -ar 22050 -ac 2 -ab 45k -f mp3";
   $max = count($rzArray)-1;
+  array_map('unlink', glob($outdir ."/*.mp3"));
   while ($progress <=$max) {
     $outputFname = $outdir . '/' . sprintf("%'.04d", $progress) . '.mp3';
-    $command = 'cd "' . $soundpath . '" && ffmpeg -i "concat:' . implode("|", $rzArray[$progress]) . '" -acodec copy ' . $outputFname;
+    $command = 'cd "' . $soundpath . '" && ffmpeg -i "concat:' . implode("|", $rzArray[$progress]) . '" -acodec copy ' . $options . ' ' . $outputFname;
     $batch['operations'][] = array('flashcard_mp3_create', array($command, $progress, $limit));
     $progress = $progress + $limit;
   }
@@ -380,6 +395,9 @@ function flashcard_mp3_script() {
 
 /**
  * Function flashcard_mp3_create().
+ *
+ * Executes the bash command to combine the mp3 parts into one single audio file
+ * for listenning.
  */
 function flashcard_mp3_create($command, $progress, $limit, &$context) {
   `$command`;
@@ -574,6 +592,13 @@ function flashcard_list() {
     '#theme' => 'pager',
   );
 
+  $build['mp3_link'] = array(
+    '#markup' => l(t('Build Mp3'), 'flashcard/mp3script', array(
+      '#attributes' => array(
+        'target' => '_blank',
+      ),
+    )),
+  );
   return $build;
 }
 
@@ -814,12 +839,26 @@ function flashcard_upload_audio() {
   $success = FALSE;
   if (!empty($_FILES) && isset($_FILES['audiofile'])) {
     $f = (object) $_FILES['audiofile'];
-    $success = copy($f->tmp_name, $outdir . '/' . $f->name);
+    $outFname = $outdir . '/' . $f->name;
+    $success = copy($f->tmp_name, $outFname);
+    chmod($outFname, 0777);
+    $bn = basename($f->name, '.ogg');
+    $pathBn = $outdir . '/' . $bn;
+    $mp3 = $pathBn . '.mp3';
+    $ogg = $pathBn . '.ogg';
+    if (file_exists($mp3)) {
+      unlink($mp3);
+    }
+    $options ="-vn -ar 44100 -ac 2 -ab 192k -f mp3";
+    $options ="-vn -ar 22050 -ac 2 -ab 45k -f mp3";
+    $cmd = 'ffmpeg -i "' . $ogg . '" ' . $options . ' "' . $mp3 . '"';
+    `$cmd`;
+    unlink($pathBn . '.ogg');
+    chmod($mp3, 0777);
   }
 
   $out = array(
     'success' => $success ? 1 : 0,
   );
   drupal_json_output($out);
-
 }

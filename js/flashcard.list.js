@@ -63,11 +63,11 @@
                 var iCid = '' + nowRecording;
                 nowRecording = 0;
 
-                var blob = new Blob(chunks, {'type' : 'audio/x-mpeg-3'});
+                var blob = new Blob(chunks, {'type' : 'audio/ogg; codecs=opus'});
                 chunks = [];
 
                 var oData = new FormData(audio_upload_form);
-                oData.append("audiofile", blob, iCid + ".mp3");
+                oData.append("audiofile", blob, iCid + ".ogg");
                 var oReq = new XMLHttpRequest();
                 oReq.open("POST", '/flashcard/audioupload', true);
                 oReq.onload = function(oEvent) {
