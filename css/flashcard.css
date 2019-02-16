@@ -28,3 +28,16 @@
 .card-status {
   clear: both;
 }
+a.flashcard-hide-button.flashcard-hidden {
+  color: white;
+  background: red;
+  text-decoration: none;
+}
+a.flashcard-writereview-enabled,
+a.flashcard-audioreview-enabled {
+  background: green;
+  border-radius: 6pt;
+}
+.flashcard-hide-button:hover{
+  text-decoration: none;
+}

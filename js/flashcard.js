@@ -22,18 +22,6 @@
       $('body').keypress(function(e){
         console.log('Key pressed...' + e.which);
         switch(e.which) {
-          case 32:
-            if (!paused) {
-              clearTimeout(timer);
-              $('.card-status').text('Paused...');
-              paused = true;
-            }
-            else {
-              $('.card-status').text('Continue...');
-              console.log('Now we shall continue...');
-              Drupal.behaviors.flashcard.ontimelimit();
-            }
-            break;
           case 72: //H
           case 104: //h
             //hide card command
@@ -48,7 +36,7 @@
           // Play again:
           case 112: //p
           case 80:  //P
-            Drupal.behaviors.flashcard.play();
+            Drupal.behaviors.flashcard.playOriginal();
             break;
           // Store for audio review
           case 65: //a
@@ -67,10 +55,6 @@
           case 84: //E
             Drupal.behaviors.flashcard.playEn();
             break;
-          case 120: //x
-          case 88: //X
-            Drupal.behaviors.flashcard.nextcmd('t');
-            break;
           case 103: //g
           case 71: //G
             Drupal.behaviors.flashcard.gtsel();
@@ -78,22 +62,37 @@
         }
       });
 
-      Drupal.behaviors.flashcard.play();
-
-      var original = $('.card .original').text();
-
-      var timeLimit = 1000 + parseInt(original.length * 700);
-      if ($('#doautoplay').text() == '1') {
-        timer = setTimeout(Drupal.behaviors.flashcard.ontimelimit,timeLimit);
-      }
+      this.playOriginal();
     },
-    ontimelimit: function () {
+    gotonext: function () {
       var nextId = $('.nextcard').text();
       window.location = '/flashcard/train/' + nextId;
     },
-    play: function () {
+    gotonextIfAuto: function () {
+      if ($('#autoplay').text() == '1') {
+        this.gotonext();
+      }
+    },
+    playOriginal: function () {
       var audioFile = '/' + $('.sound').text();
       var audio = new Audio(audioFile);
+      audio.addEventListener('ended', function() {
+        var recordingUrl = $('.card').attr('data:recording');
+        if (recordingUrl) {
+          var audioRec = new Audio(recordingUrl);
+          audioRec.addEventListener('ended', function() {
+            var audio2 = new Audio(audioFile);
+            audio2.play();
+            audio2.addEventListener('ended', function() {
+              Drupal.behaviors.flashcard.gotonextIfAuto();
+            });
+          });
+          audioRec.play();
+        }
+        else {
+          Drupal.behaviors.flashcard.gotonextIfAuto();
+        }
+      });
       audio.play();
     },
     // Next card with command attached:

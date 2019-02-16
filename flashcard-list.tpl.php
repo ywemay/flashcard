@@ -18,12 +18,11 @@ foreach($rows as $card) {
     <?php echo $card->audioreview_link; ?>
     <?php echo $card->writereview_link; ?>
     <span class="record" data:cid="<?php echo $card->cid; ?>">&ofcir;</span>
-    <span class="play <?php echo $card->classRecord; ?>">&rtrif;</span>
+    <span class="play-rec <?php echo $card->classRecord; ?>">&rtrif;</span>
     <?php echo $card->delete_recording_link; ?>
   </div>
 </div>
 <?php
 }
 ?>
-<form id="audio_upload_form"></form>
 <input type="hidden" id="recdir" class="recdir" value="<?php echo $recdir; ?>" />

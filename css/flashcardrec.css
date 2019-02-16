@@ -1,0 +1,14 @@
+.play-rec,
+.delete,
+.record{
+  font-size: 18pt;
+  padding: 2pt 4pt;
+  cursor: default;
+}
+.recording {
+  background: red;
+  border-radius: 6pt;
+}
+.recording-hide {
+  display: none;
+}

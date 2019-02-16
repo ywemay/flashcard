@@ -1,30 +1,40 @@
-<div class="card">
-  <div class="original"><?php echo $card->original; ?></div>
-  <div class="transcript"><?php echo $card->transcript; ?></div>
-  <div class="translation"><?php echo $card->translation; ?></div>
-  <div class="sound hidden-element"><?php echo $card->sound; ?></div>
-</div>
-<?php 
-  $original = str_replace("\n", ' ', strip_tags($card->original));
-?>
-<div class="views-count">
-  <a href="https://translate.google.com/#view=home&op=translate&sl=zh-CN&tl=en&text=<?php echo $original; ?>" target="translate">GT</a>
-  <a href="/" id="gt-sel" title="Google translate selection" target="translate">GTSEL</a> 
-<?php 
-    echo l(t('Next'), 'flashcard/train/' . $nextCard->cid, array(
-      'attributes' => array(
-        'id' => 'btn-next',
-      ),
-    ));
-?>
+<div class="flashcard-<?php echo $card->cid; ?>">
+  <div class="card"<?php echo $card->recording ? ' data:recording="' . $card->recording . '"':''; ?>>
+    <div class="original"><?php echo $card->original; ?></div>
+    <div class="transcript"><?php echo $card->transcript; ?></div>
+    <div class="translation"><?php echo $card->translation; ?></div>
+    <div class="sound hidden-element"><?php echo $card->sound; ?></div>
+    <?php 
+      $original = str_replace("\n", ' ', strip_tags($card->original));
+    ?>
+  </div>
+  <div class="views-count">
+    <a href="https://translate.google.com/#view=home&op=translate&sl=zh-CN&tl=en&text=<?php echo $original; ?>" target="translate">GT</a>
+    <a href="/" id="gt-sel" title="Google translate selection" target="translate">GTSEL</a> 
+  <?php 
+      echo l(t('Next'), 'flashcard/train/' . $nextCard->cid, array(
+        'attributes' => array(
+          'id' => 'btn-next',
+        ),
+      ));
+      echo $card->hide_link;
+      echo $card->audioreview_link;
+      echo $card->writereview_link;
+      $card->classRecord = $card->recording ? 'recording-show' : 'recording-hide';
+  ?>
+      <span class="record" data:cid="<?php echo $card->cid; ?>">&ofcir;</span>
+      <span class="play-rec <?php echo $card->classRecord; ?>" data:cid="<?php echo $card->cid; ?>">&rtrif;</span>
+      <?php echo $card->delete_recording_link; ?>
+  </div>
 </div>
  
 <div class="hidden-element">
 <?php if ($nextCard) {?>
-  <div id="nextcard" class="nextcard"><?php $nextCard->cid; ?></div>
+  <div id="nextcard" class="nextcard"><?php echo $nextCard->cid; ?></div>
 <?php } ?>
   <div id="cid"><?php echo $card->cid; ?></div>
   <div id="autoplay"><?php echo $settings->autoplay ? 1 : 0; ?></div>
+  <input type="hidden" id="recdir" class="recdir" value="<?php echo $card->recdir; ?>" />
 </div>
 
 <p>
@@ -35,7 +45,6 @@
   a - append to audio group indicating need to study using audio files<br />
   w - append to write group - need to study writting<br />
   e - add to audio and write groups<br />
-  x - toggle autoplay<br />
 </div>
 </p>
 

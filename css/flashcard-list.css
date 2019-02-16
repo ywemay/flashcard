@@ -35,21 +35,18 @@
   background: red;
   text-decoration: none;
 }
-.flashcard-hide-button:hover{
-  text-decoration: none;
-}
-.play,
-.delete,
-.record,
-.flashcard-user-data a{
-  font-size: 18pt;
-  padding: 2pt 4pt;
-  cursor: default;
-}
 .flashcard-writereview-enabled,
 .flashcard-audioreview-enabled {
   background: green;
   border-radius: 6pt;
+}
+.flashcard-hide-button:hover{
+  text-decoration: none;
+}
+.flashcard-user-data a{
+  font-size: 18pt;
+  padding: 2pt 4pt;
+  cursor: default;
 }
 .flashcard-writereview-button {
   color: gray;
@@ -63,11 +60,4 @@
 .flashcard-writereview-enabled:hover {
   color: white;
   text-decoration: none;
-}
-.recording {
-  background: red;
-  border-radius: 6pt;
-}
-.recording-hide {
-  display: none;
 }
