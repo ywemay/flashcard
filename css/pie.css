@@ -1,0 +1,51 @@
+.pie {
+  width: 300px;
+  background: #ccc;
+  border-radius: 50%;
+}
+
+.pie circle {
+  fill: none;
+  /*stroke: gold;*/
+  stroke-width: 32;
+  animation: rotate 1.5s ease-in;
+}
+
+@keyframes rotate {
+  to {
+    x
+  } 
+}
+
+.pie-hiden-cards circle{
+  stroke: lightgreen;
+  color: darkgreen;
+}
+.pie-total-cards {
+  stroke: silver;
+  color: black;
+}
+.pie-common-cards circle{
+  stroke: yellow;
+  color: orange;
+}
+
+.stats-legend div span {
+  width: 24px;
+  padding: 2pt 7pt;
+}
+.pie-total-cards span{
+  background: gray;
+}
+.pie-hiden-cards span{
+  background: green;
+}
+.pie-review-both span{
+  background: yellow;
+}
+.pie-review-audio span{
+  background: orange;
+}
+.pie-review-writing span{
+  background: blue;
+}

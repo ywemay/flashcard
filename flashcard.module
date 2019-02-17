@@ -68,6 +68,14 @@ function flashcard_menu() {
     'weight' => 250,
   );
 
+  $items['flashcard/stats'] = array(
+    'title' => 'Statistics',
+    'desription' => 'A graph showing the learing progress.',
+    'page callback' => 'flashcard_progress_chart',
+    'access arguments' => array('flashcard learn'),
+    'menu_name' => 'main-menu',
+  );
+
   $items['flashcard/toggle/hide/nojs/%'] = array(
     'description' => 'Toggles hidde/show state of the flashcard',
     'page callback' => 'flashcard_toggle_hide',
@@ -158,6 +166,19 @@ function flashcard_theme($existing, $type, $theme, $path) {
       ],
       'render element' => 'element',
       'template' => 'flashcard-list',
+    ],
+    'flashcard_progress' => [
+      'variables' => [
+        'stats' => (object) array(
+          'total_cards' => 0,
+          'hiden_cards' => 0,
+          'ongoing_cards' => 0,
+          'to_audioreview' => 0,
+          'to_writereview' => 0,
+        ),
+      ],
+      'render element' => 'element',
+      'template' => 'flashcard-progress',
     ],
   ];
 }
@@ -362,10 +383,7 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
 
   $build['links'] = array(
     '#theme' => 'item_list',
-    '#items' => array(
-      l(t('Flashcards'), 'flashcard'),
-      l(t('Config'), 'flashcard/config'),
-    ),
+    '#items' => flashcard_get_links('train'),
   );
   return $build;
 }
@@ -432,21 +450,33 @@ function flashcard_list() {
     '#theme' => 'pager',
   );
 
+  $build['links'] = array(
+    '#theme' => 'item_list',
+    '#items' => flashcard_get_links('list'),
+  );
+
+  return $build;
+}
+
+/**
+ * Function flashcard_get_links().
+ */
+function flashcard_get_links($exclude = FALSE) {
   $links = array(
-    l(t('Train'), 'flashcard/train'),
-    l(t('Build Mp3'), 'flashcard/mp3script', array(
+    'list' => l(t('Train'), 'flashcard'),
+    'train' => l(t('Train'), 'flashcard/train'),
+    'config' => l(t('Config'), 'flashcard/config'),
+    'stats' => l(t('Statistics'), 'flashcard/stats'),
+    'mp3' => l(t('Build Mp3'), 'flashcard/mp3script', array(
       '#attributes' => array(
         'target' => '_blank',
       ),
     )),
   );
-
-  $build['links'] = array(
-    '#theme' => 'item_list',
-    '#items' => $links,
-  );
-
-  return $build;
+  if ($exclude) {
+    if (isset($links[$exclude])) unset($links[$exclude]);
+  }
+  return $links;
 }
 
 /**
@@ -1059,10 +1089,7 @@ function flashcard_config_form($form, $form_state) {
 
   $form['links'] = array(
     '#theme' => 'item_list',
-    '#items' => array(
-      l(t('Flashcards'), 'flashcard'),
-      l(t('Train'), 'flashcard/train/0'),
-    ),
+    '#items' => flashcard_get_links('config'),
   );
   return $form;
 }
@@ -1083,4 +1110,67 @@ function flashcard_config_form_submit($form, &$form_state) {
   $set_key = 'flashcard_' . $user->uid . '_play';
   variable_set($set_key, $set);
   drupal_set_message(t('Saved successfully.'));
+}
+
+/**
+ * Function flashcard_progress_chart().
+ */
+function flashcard_progress_chart() {
+
+  global $user;
+
+  $modpath = drupal_get_path('module', 'flashcard');
+  drupal_add_css($modpath . '/css/pie.css');
+
+  $stats = new stdClass();
+  //count all cards:
+  $rez = db_select('flashcard', 't')
+    ->fields('t', array('cid'))->execute();
+  $stats->total_cards = $rez->rowCount();
+
+  /*
+
+  $query = db_select('flashcard_user_data', 'd')
+    ->fields('d', array('cid'))
+    ->condition('d.uid', $user->uid);
+  $q = $query;
+  $rez = $q->condition('d.hide', 1)->execute();
+  $stats->hiden_cards = $rez->rowCount();
+
+  $q = $query;
+  $or = db_or()->condition('d.audioreview', 1)->condition('d.writereview', 1);
+  $rez = $q->condition('d.hide', 0)->condition($or)->execute();
+  $stats->ongoing_cards = $rez->rowCount();
+
+  $q = $query;
+  $rez = $q->condition('d.hide', 0)->condition('d.audioreview', 1)->execute();
+  $stats->to_audioreview = $rez->rowCount();
+
+  $q = $query;
+  $rez = $q->condition('d.hide', 0)->condition('d.writereview', 1)->execute();
+  $stats->to_writereview = $rez->rowCount();
+  */
+
+  $query = db_select('flashcard_user_data', 't');
+  $query->addExpression('SUM(t.hide)', 'hiden_cards');
+  $query->addExpression('SUM(t.audioreview * (1-t.hide))', 'to_audioreview');
+  $query->addExpression('SUM(t.writereview * (1-t.hide))', 'to_writereview');
+  $query->addExpression('SUM(t.writereview * t.audioreview * (1-t.hide))', 'common');
+
+  $rez = $query->execute();
+  $r = $rez->fetchObject();
+  foreach ($r as $k=>$v) {
+    $stats->{$k} = $v;
+  }
+  $percent = new stdClass();
+  foreach($stats as $k=>$v) {
+    $percent->$k = sprintf("%.1f", $v * 100 / $stats->total_cards);
+  }
+  $stats->percent = $percent;
+  $build = array(
+    '#theme' => 'flashcard_progress',
+    '#stats' => $stats,
+  );
+
+  return $build;
 }
