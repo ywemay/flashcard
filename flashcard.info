@@ -3,3 +3,4 @@ description = A teaching program to learn things using flashcards
 core = 7.x
 package = Learning
 
+;dependencies[] = flashcard_deck

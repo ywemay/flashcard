@@ -1,9 +1,16 @@
-<div class="flashcard-<?php echo $card->cid; ?>">
+<div class="flashcard flashcard-<?php echo $card->cid; ?>"
+  data:cid="<?php echo $card->cid; ?>"
+  data:did="<?php echo $card->did; ?>"
+  data:recdir="<?php echo $card->recdir; ?>"
+  data:sound="<?php echo $card->sound; ?>"
+  data:record="<?php echo $card->recording; ?>"
+  data:play_plan="<?php echo $settings->play_mode; ?>"
+  data:autoplay="<?php echo $settings->autoplay ? 1 : 0; ?>"
+  data:next_path="<?php echo $card->next_path;  ?>">
   <div class="card"<?php echo $card->recording ? ' data:recording="' . $card->recording . '"':''; ?>>
     <div class="original"><?php echo $card->original; ?></div>
     <div class="transcript"><?php echo $card->transcript; ?></div>
     <div class="translation"><?php echo $card->translation; ?></div>
-    <div class="sound hidden-element"><?php echo $card->sound; ?></div>
     <?php 
       $original = str_replace("\n", ' ', strip_tags($card->original));
     ?>
@@ -12,7 +19,7 @@
     <a href="https://translate.google.com/#view=home&op=translate&sl=zh-CN&tl=en&text=<?php echo $original; ?>" target="translate">GT</a>
     <a href="/" id="gt-sel" title="Google translate selection" target="translate">GTSEL</a> 
   <?php 
-      echo l(t('Next'), 'flashcard/train/' . $nextCard->cid, array(
+      echo l(t('Next'), $card->next_path, array(
         'attributes' => array(
           'id' => 'btn-next',
         ),
@@ -27,16 +34,6 @@
       <?php echo $card->delete_recording_link; ?>
   </div>
 </div>
- 
-<div class="hidden-element">
-<?php if ($nextCard) {?>
-  <div id="nextcard" class="nextcard"><?php echo $nextCard->cid; ?></div>
-<?php } ?>
-  <div id="cid"><?php echo $card->cid; ?></div>
-  <div id="autoplay"><?php echo $settings->autoplay ? 1 : 0; ?></div>
-  <input type="hidden" id="recdir" class="recdir" value="<?php echo $card->recdir; ?>" />
-</div>
-
 <p>
 <div class="hotkeys-legend element-hidden">
   h - hide card<br />

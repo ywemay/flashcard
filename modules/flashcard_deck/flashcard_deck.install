@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * Invoke hook_schema().
+ */
+function flashcard_deck_schema() {
+
+  $schema['flashcard_deck'] = array(
+    'description' => 'Flashcard decks information.',
+    'fields' => array(
+      'did' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Deck ID',
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 80,
+        'description' => 'Deck name',
+      ),
+      'description' => array(
+        'type' => 'text',
+        'size' => 'small', // tiny | small | normal | medium | big
+        'not null' => FALSE, 
+        'description' => 'Deck short description.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'Author of the deck, user id',
+      ),
+    ),
+    'primary key' => array('did'),
+    'unique keys' => array(
+      'deck_name' => array('name'),
+    ),
+  );
+  return $schema;
+}

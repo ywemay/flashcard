@@ -12,6 +12,14 @@ function flashcard_schema() {
         'not null' => TRUE,
         'description' => 'Card id',
       ),
+      'did' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'Deck id',
+      ),
       'original' => array(
         'type' => 'varchar',
         'length' => 255,

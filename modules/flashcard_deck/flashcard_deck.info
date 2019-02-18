@@ -1,0 +1,5 @@
+name = Flashcard Deck
+description = Decks list
+core = 7.x
+package = Learning
+

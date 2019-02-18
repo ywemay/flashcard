@@ -23,29 +23,36 @@ function flashcard_menu() {
 
   $items['flashcard'] = array(
     'title' => t('Flashcards'),
-    'page callback' => 'flashcard_list',
-    'access arguments' => array('flashcard list'),
+    'page callback' => 'flashcard_main_page',
+    'access arguments' => array('flashcard learn'),
     'menu_name' => 'main-menu',
     'weight' => 100,
   );
 
-  $items['flashcard/import'] = array(
+  $items['flashcard/deck/%flashcard_deck/import'] = array(
     'title' => t('Import flashcards'),
-    'page callback' => 'flashcard_show_imports',
-    'access arguments' => array('flashcard import'),
-    'menu_name' => 'main-menu',
-    'weight' => 130,
-  );
-
-  $items['flashcard/import/%'] = array(
-    'title' => t('Process import file'),
-    'page callback' => 'flashcard_process_import',
+    'page callback' => 'flashcard_import_form_wrapper',
     'page arguments' => array(2),
     'access arguments' => array('flashcard import'),
   );
 
-  $items['flashcard/train'] = array(
+  $items['flashcard/deck/%flashcard_deck/import/preview/%'] = array(
+    'title' => t('Preview Import'),
+    'page callback' => 'flashcard_import_form_wrapper',
+    'page arguments' => array(2, 'preview', 5),
+    'access arguments' => array('flashcard import'),
+  );
+
+  $items['flashcard/deck/%flashcard_deck/list'] = array(
+    'title' => 'List deck cards',
+    'page callback' => 'flashcard_list',
+    'page arguments' => array(2),
+    'access arguments' => array('flashcard learn'),
+  );
+
+  $items['flashcard/deck/%flashcard_deck/train'] = array(
     'page callback' => 'flashcard_train',
+    'page arguments' => array(2),
     'access arguments' => array('flashcard learn'),
     'menu_name' => 'main-menu',
     'weight' => 200,
@@ -56,22 +63,25 @@ function flashcard_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('flashcard_config_form'),
     'access arguments' => array('flashcard learn'),
+    //'file' => 'system.inc',
     'menu_name' => 'main-menu',
   );
 
-  $items['flashcard/mp3script'] = array(
+  $items['flashcard/deck/%flashcard_deck/mp3script'] = array(
     'title' => 'Mp3 Script',
     'description' => 'Script builder for linux command line to generate mp3 files for audio listenning',
     'access arguments' => array('flashcard learn'),
     'page callback' => 'flashcard_mp3_script',
+    'page arguments' => array(2),
     'menu_name' => 'main-menu',
     'weight' => 250,
   );
 
-  $items['flashcard/stats'] = array(
+  $items['flashcard/deck/%flashcard_deck/stats'] = array(
     'title' => 'Statistics',
     'desription' => 'A graph showing the learing progress.',
     'page callback' => 'flashcard_progress_chart',
+    'page arguments' => array(2),
     'access arguments' => array('flashcard learn'),
     'menu_name' => 'main-menu',
   );
@@ -134,6 +144,213 @@ function flashcard_menu() {
 }
 
 /**
+ * Invoke hook_flashcard_deck_actions().
+ */
+function flashcard_flashcard_deck_actions(&$actions, $deck) {
+  $actions['train'] = l(t('Learn'), 'flashcard/deck/' . $deck->did . '/train');
+  $actions['list'] = l(t('List Cards'), 'flashcard/deck/' . $deck->did . '/list');
+  $actions['statistics'] = l(t('Statistics'), 'flashcard/deck/' . $deck->did . '/stats'); 
+  $actions['generatemp3'] = l(t('Generate MP3'), 'flashcard/deck/' . $deck->did . '/mp3script'); 
+}
+
+/**
+ * Function flashcard_import_form_wrapper().
+ */
+function flashcard_import_form_wrapper($deck, $mode = FALSE, $fname) {
+  if (!$mode) {
+    return drupal_get_form('flashcard_import_form', $deck->did);
+  }
+  if ($mode == 'preview') {
+    return drupal_get_form('flashcard_import_preview_form', $deck->did, $fname);
+  }
+}
+
+/**
+ * Function flashcard_import_form().
+ */
+function flashcard_import_form($form, $form_state, $did) {
+
+  $form['file'] = array(
+    '#type' => 'file',
+    '#title' => t('File'),
+    '#description' => t('File from which shall import the cards data. File shall contain tab separated records.'),
+    '#attributes' => array(
+      'accept' => '.txt, .cvs',
+    ),
+  );
+
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Import'),
+  );
+  return $form;
+}
+
+/**
+ * Function flashcard_import_form_submit().
+ */
+function flashcard_import_form_submit($form, $form_state) {
+  $did = $form_state['build_info']['args'][0];
+  //dpm($form_state['values']);
+  //if (!$form_state['values']['file']) return;
+  $updir = 'public://flashcard/import';
+  file_prepare_directory($updir, FILE_CREATE_DIRECTORY);
+  $validators = array();
+  $file = file_save_upload('file', $validators, FILE_EXISTS_RENAME);
+  drupal_goto('flashcard/' . $did . '/import/preview/' . $file->filename);
+}
+
+/**
+ * Function flashcard_import_preview_form().
+ */
+function flashcard_import_preview_form($form, $form_state, $did, $fname) {
+  $fname = 'temporary://' . $fname;
+  $contents = file($fname);
+  
+  $lines_count = count($contents);
+  $max = $lines_count > 10 ? 10 : $lines_count;
+
+  $options = explode("\t", trim($contents[0]));
+
+  for ($i = 1; $i<$max; $i++) {
+    $rows[$i] = explode("\t", trim($contents[$i]));
+  }
+  $form['preview'] = array(
+    '#theme' => 'table',
+    '#header' => $options,
+    '#rows' => $rows,
+    '#empty' => t('No data found.'),
+  );
+
+  $form['original'] = array(
+    '#type' => 'select',
+    '#title' => t('Original'),
+    '#options' => $options,
+    '#default_value' => 0,
+  );
+
+  $form['transcription'] = array(
+    '#type' => 'select',
+    '#title' => t('Transcription'),
+    '#options' => $options,
+    '#default_value' => 1,
+  );
+
+  $form['translation'] = array(
+    '#type' => 'select',
+    '#title' => t('Translation'),
+    '#options' => $options,
+    '#default_value' => 2,
+  );
+
+  $form['sound'] = array(
+    '#type' => 'select',
+    '#title' => t('Sound'),
+    '#options' => $options,
+    '#default_value' => 3,
+  );
+
+  $form['firstcol'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('First column contains titles.'),
+    '#default_value' => FALSE,
+  );
+
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Import'),
+  );
+  return $form;
+}
+
+/**
+ * Function flashcard_import_preview_submit().
+ */
+function flashcard_import_preview_submit($form, $form_state) {
+  $v = (object) $form_state['values'];
+  $v->did = $form_state['build_info']['args'][0];
+
+  $lines = file($fname);
+  if (!$lines) {
+    $build = array('#markup' => 'Nothing to import from file ' . $fname);
+    return $Build;
+  }
+
+  if ($v['firstcol']) {
+    array_shift($lines);
+  }
+
+  $batch = array(
+    'operations' => array(),
+    'finished' => 'flashcard_process_import_finished',
+    'title' => t('Import from file @fname', array('@fname' => basename($fname, '.txt'))),
+    'init_message' => t('Import is starting'),
+    'process_message' => t('Processed @current out of @total.'),
+    'error_message' => t('Import has encountered an error.'),
+  );
+
+  $parts = array_chunk($lines, 50);
+  $operations_count = count($parts);
+  $data = (object) array('struct' => $v);
+  foreach($parts as $i => $part) {
+    $data->lines = $part;
+    $batch['operations'][] = array('flashcard_import_cards', array($date, $i, $operations_count));
+  }
+
+  batch_set($batch);
+ 
+}
+
+/**
+ * Function flashcard_import_cards().
+ */
+function flashcard_import_cards($data, $progress, $limit, &$context) {
+  $struct = $data->struct;
+  foreach($lines->lines as $line) {
+    $parts = explode("\t", trim($line));
+    $original = $parts[$struct->original];
+    $transcript = $parts[$struct->transcript];
+    $translation = $parts[$struct->translation];
+    $sound = $parts[$struct->soud];
+    $soud = preg_replace(array("/^\[/", "/\]$/"), '', $sound);
+    $query = db_select('flashcard', 't')
+      ->fields('t', array('cid'));
+    $query->condition('t.original', $original);
+    $result = $query->execute();
+    if (!$result->fetchAssoc()) {
+      $query = db_insert('flashcard')
+        ->fields(array(
+          'did' => $struct->did,
+          'original' => $original,  
+          'transcript' => $transcript,
+          'translation' => $translation,
+          'sound' => $sound,
+        ));
+      $query->execute();
+    }
+  }
+  $progress = $progress+$limit;
+  $context['message'] = 'Now processings ' . $progress . ' - ' . $context['results'][0] . ' imported';
+}
+
+/**
+ * Function flashcard_process_import_finished().
+ */
+function flashcard_process_import_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message('Import is complete');
+  }
+  else {
+    $error_operation = reset($operations);
+    $message = t('An error occured while processing %error_operation %error_operation with arguments: @arguments', array(
+            '%error_operation' => $error_operation[0],
+            '@arguments' => print_r($error_operation[1], TRUE)
+    ));
+    drupal_set_message($message, 'error');
+  }
+}
+
+/**
  * Function flashcard_create().
  */
 function flashcard_create() {
@@ -153,7 +370,6 @@ function flashcard_theme($existing, $type, $theme, $path) {
     'flashcard_display' => [
       'variables' => [
         'card' => NULL,
-        'nextCard' => NULL,
         'settings' => NULL,
       ],
       'render element' => 'element',
@@ -181,6 +397,17 @@ function flashcard_theme($existing, $type, $theme, $path) {
       'template' => 'flashcard-progress',
     ],
   ];
+}
+
+/**
+ * Function flashcard_main_page().
+ */
+function flashcard_main_page() {
+  $build['links'] = array(
+    '#theme' => 'item_list',
+    '#items' => flashcard_get_links(),
+  );
+  return $build;
 }
 
 /**
@@ -288,11 +515,12 @@ function flashcard_recording_url($cid) {
 /**
  * Function flashcard_train().
  */
-function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
+function flashcard_train($deck, $cid = 0, $cmd = FALSE, $arg = FALSE) {
+  $did = $deck->did;
   $build = array();
 
   if (!$cid) {
-    $card = flashcard_load_next_card(0);
+    $card = flashcard_load_next_card(0, $did);
     if (!$card) {
       return array('#markup' => t('No flashcards left for learning for given criteria'));
     }
@@ -329,6 +557,9 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
 
   $modpath = drupal_get_path('module', 'flashcard');
   $soundpath = $modpath . '/audio';
+  $linkParams = array(
+    'absolute' => TRUE,
+  );
 
   $recDir = 'public://flashcard/recordings/' . $user->uid; 
   file_prepare_directory($recDir, FILE_CREATE_DIRECTORY);
@@ -351,11 +582,13 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
   $query->fields('d');
   $query->condition(db_or()->condition('d.uid', $user->uid)->condition('d.cid', NULL));
   $query->condition('t.cid', $cid);
+  $query->condition('t.did', $did);
   $result = $query->execute();
   $card = $result->fetchObject();
 
   $toReplace = array("/^\[(sound\:)/", "/\]$/");
   $card->sound = $soundpath . '/' . preg_replace($toReplace, '', trim($card->sound));
+  $card->sound = url($card->sound, $linkParams);
   
   $card->stats = $stats;
 
@@ -372,11 +605,12 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
   $rows = array();
 
   $card->recording = flashcard_recording_url($cid);
+  $nextCard = flashcard_load_next_card($cid, $did);
+  $card->next_path = url('flashcard/deck/' . $did . '/train/' . $nextCard->cid, $linkParams);
 
   $build['flashcard'] = array(
     '#theme' => 'flashcard_display',
     '#card' => $card,
-    '#nextCard' => flashcard_load_next_card($cid),
     '#settings' => (object) $set,
     'nothing' => NULL,
   );
@@ -391,7 +625,8 @@ function flashcard_train($cid = 0, $cmd = FALSE, $arg = FALSE) {
 /**
  * Function flashcard_list().
  */
-function flashcard_list() {
+function flashcard_list($deck) {
+  $did = $deck->did;
 
   global $user;
 
@@ -416,9 +651,10 @@ function flashcard_list() {
   $query->fields('d', array('views_count', 'hide', 'audioreview', 'writereview'));
   
   $result = $query
-      ->limit(30)
-      ->orderBy('t.cid')
-      ->execute();
+    ->condition('t.did', $did)
+    ->limit(30)
+    ->orderBy('t.cid')
+    ->execute();
   
   $rows = array();
   foreach ($result as $row) {
@@ -482,7 +718,7 @@ function flashcard_get_links($exclude = FALSE) {
 /**
  * Function _flashcard_load_next_card().
  */
-function _flashcard_load_next_card($cid) {
+function _flashcard_load_next_card($cid, $did) {
   global $user;
   $set = flashcard_get_user_settings('training');
   $query = db_select('flashcard', 't');
@@ -517,6 +753,7 @@ function _flashcard_load_next_card($cid) {
   $query->condition($and);
   $query->condition('t.cid', $cid, '>');
   $query->condition('t.cid', $set->startat, '>=');
+  $query->condition('t.did', $did);
   $query->range(0,1);
   $query->orderBy('t.cid');
   $rez = $query->execute();
@@ -526,20 +763,21 @@ function _flashcard_load_next_card($cid) {
 /**
  * Function flashcard_load_next_card().
  */
-function flashcard_load_next_card($cid) {
-  $card = _flashcard_load_next_card($cid);
-  if (!$card) return _flashcard_load_next_card(0);
+function flashcard_load_next_card($cid, $did) {
+  $card = _flashcard_load_next_card($cid, $did);
+  if (!$card) return _flashcard_load_next_card(0, $did);
   return $card;
 }
 
 /**
  * Function flashcard_mp3_script().
  */
-function flashcard_mp3_script() {
+function flashcard_mp3_script($deck) {
 
   global $user;
+  $set = (object) flashcard_get_user_settings('training');
 
-  $outdir = 'public://flashcard/mp3out'; 
+  $outdir = 'public://flashcard/mp3out/' . $deck->did; 
   file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
   $outdir = drupal_realpath($outdir);
 
@@ -550,6 +788,7 @@ function flashcard_mp3_script() {
   $query->fields('c', array('cid', 'sound'));
   $query->condition('d.uid', $user->uid);
   $query->condition('d.audioreview', 1);
+  $query->condition('c.did', $deck->did);
   $query->orderBy('d.cid');
   $rez = $query->execute();
 
@@ -559,17 +798,24 @@ function flashcard_mp3_script() {
   $toReplace = array("/^\[(sound\:)/", "/\]$/");
   $rzArray = array();
   $count = 0;
+
+  $set->play_mode = explode(":", $set->play_mode);
   while($card = $rez->fetchObject()) {
     $card->sound = preg_replace($toReplace, '', trim($card->sound));
-
-    $rzArray[$count][] = $card->sound;
     $recordFile = $recdir . '/' . $card->cid . '.mp3';
-    if (file_exists($recordFile)) {
-      $rzArray[$count][] = $recordFile;
-      $rzArray[$count][] = $card->sound;
-    }
-    $rzArray[$count][] = $card->sound;
 
+    $mp3parts = array(
+      //1 => file_exists($card->sound) ? $card->sound : FALSE,
+      //2 => file_exists($recordFile) ? $recordFile : FALSE,
+      1 => $card->sound,
+      2 => $recordFile,
+    );
+
+    foreach($set->play_mode as $k) {
+      if ($mp3parts[$k]) {
+        $rzArray[$count][] = $mp3parts[$k];
+      }
+    }
     if (count($rzArray[$count]) >= 50){
       $count++;
     }
@@ -587,19 +833,19 @@ function flashcard_mp3_script() {
   $progress = 0;
   $limit = 1;
 
-  $options ="-vn -ar 44100 -ac 2 -ab 192k -f mp3";
-  $options ="-vn -ar 22050 -ac 2 -ab 45k -f mp3";
-  $max = count($rzArray)-1;
   array_map('unlink', glob($outdir ."/*.mp3"));
-  while ($progress <=$max) {
-    $outputFname = $outdir . '/' . sprintf("%'.04d", $progress) . '.mp3';
-    $command = 'cd "' . $soundpath . '" && ffmpeg -i "concat:' . implode("|", $rzArray[$progress]) . '" -acodec copy ' . $options . ' ' . $outputFname;
-    $batch['operations'][] = array('flashcard_mp3_create', array($command, $progress, $limit));
-    $progress = $progress + $limit;
+
+  foreach($rzArray as $progress=>$files) {
+    $data = (object) array(
+      'files' => $files,
+      'soundpath' => $soundpath,
+      'outdir' => $outdir,
+    );
+    $batch['operations'][] = array('flashcard_mp3_create', array($data, $progress));
   }
 
   batch_set($batch);
-  batch_process('flashcard');
+  batch_process('flashcard/deck/' . $deck->did);
 }
 
 /**
@@ -608,10 +854,22 @@ function flashcard_mp3_script() {
  * Executes the bash command to combine the mp3 parts into one single audio file
  * for listenning.
  */
-function flashcard_mp3_create($command, $progress, $limit, &$context) {
+function flashcard_mp3_create($data, $progress, &$context) {
+  //$options ="-vn -ar 44100 -ac 2 -ab 192k -f mp3";
+  $options ="-vn -ar 22050 -ac 2 -ab 45k -f mp3";
+  
+  foreach($data->files as $k=>$fname){
+    if (dirname($fname) == '.') { 
+      $fname = $data->soundpath . '/' . $fname;
+    }
+    if (!file_exists($fname)) {
+      unset($data->files[$k]);
+    }
+  }
+  $outputFname = $data->outdir . '/' . sprintf("%'.04d", $progress) . '.mp3';
+  $command = 'cd "' . $data->soundpath . '" && ffmpeg -i "concat:' . implode("|", $data->files) . '" -acodec copy ' . $options . ' ' . $outputFname;
   `$command`;
-  $progress = $progress+$limit;
-  $context['message'] = 'Now processings ' . $progress . ' - ' . $context['results'][0] . ' imported';
+  $context['message'] = 'Now creating ' . basename($outputFname) . ' - ' . $context['results'][0];
 }
 
 /**
@@ -630,109 +888,6 @@ function flashcard_mp3_creation_finished($success, $results, $operations) {
     drupal_set_message($message, 'error');
   }
   
-}
-
-/**
- * Function flashcard_show_imports().
- */
-function flashcard_show_imports() {
-  $build['info'] = array(
-    '#markup' => 'Flashcards inport',
-  );
-
-  $path = drupal_get_path('module', 'flashcard') . '/data';
-  $files = glob($path . "/*.txt");
-
-  foreach($files as $i=>$f) {
-    $f = basename($f, '.txt');
-    $build['line_' . $i] = array(
-      "#markup" => '<p>' . l($f, 'flashcard/import/' . $f) . '</p>',
-    );
-  }
-
-  return $build;
-}
-
-/**
- * Function flashcard_process_import().
- */
-function flashcard_process_import($fname) {
-  $build = array();
-
-  $fname = drupal_get_path('module', 'flashcard') . '/data/' . $fname . '.txt';
-  $fname = drupal_realpath($fname);
-  $lines = file($fname);
-  if (!$lines) {
-    $build = array('#markup' => 'Nothing to import from file ' . $fname);
-    return $Build;
-  }
-
-  $batch = array(
-    'operations' => array(),
-    'finished' => 'flashcard_process_import_finished',
-    'title' => t('Import from file @fname', array('@fname' => basename($fname, '.txt'))),
-    'init_message' => t('Import is starting'),
-    'process_message' => t('Processed @current out of @total.'),
-    'error_message' => t('Import has encountered an error.'),
-  );
-
-  $progress = 0;
-  $limit = 50;
-  $max = count($lines);
-  while ($progress <=$max) {
-    $batch['operations'][] = array('flashcard_import_cards', array($fname, $progress, $limit));
-    $progress = $progress + $limit;
-  }
-
-  batch_set($batch);
-  batch_process('flashcard/import');
-  //return $build;
-}
-
-/**
- * Function flashcard_import_cards().
- */
-function flashcard_import_cards($fname, $progress, $limit, &$context) {
-  
-  $lines = file($fname);
-  for($i = $progress; $i<=$progress+$limit; $i++){
-    $parts = explode("\t", trim($lines[$i]));
-    list($translation, $transcript, $original, $sound) = $parts;
-    $soud = preg_replace(array("/^\[/", "/\]$/"), '', $sound);
-    $query = db_select('flashcard', 't')
-      ->fields('t', array('cid'));
-    $query->condition('t.original', $original);
-    $result = $query->execute();
-    if (!$result->fetchAssoc()) {
-      $query = db_insert('flashcard')
-        ->fields(array(
-          'original' => $original,  
-          'transcript' => $transcript,
-          'translation' => $translation,
-          'sound' => $sound,
-        ));
-      $query->execute();
-    }
-  }
-  $progress = $progress+$limit;
-  $context['message'] = 'Now processings ' . $progress . ' - ' . $context['results'][0] . ' imported';
-}
-
-/**
- * Function flashcard_process_import_finished().
- */
-function flashcard_process_import_finished($success, $results, $operations) {
-  if ($success) {
-    drupal_set_message('Import is complete');
-  }
-  else {
-    $error_operation = reset($operations);
-    $message = t('An error occured while processing %error_operation %error_operation with arguments: @arguments', array(
-            '%error_operation' => $error_operation[0],
-            '@arguments' => print_r($error_operation[1], TRUE)
-    ));
-    drupal_set_message($message, 'error');
-  }
 }
 
 /**
@@ -1008,6 +1163,7 @@ function flashcard_get_user_settings($key = FALSE) {
     'training' => array(
       'startat' => 0,
       'autoplay' => FALSE,
+      'play_mode' => '1:2:1:1',
       'play_recordings' => 'play_recordings',
       'play_audioreview' => 'play_audioreview',
       'play_writereview' => FALSE,
@@ -1054,13 +1210,32 @@ function flashcard_config_form($form, $form_state) {
     '#default_value' => $set['training'],
   );
 
-  $form['tc']['startat'] = array(
+  $form['tcadd'] = array('#tree' => TRUE);
+
+  $form['tcadd']['startat'] = array(
     '#title' => t('Start at card ID'),
     '#type' => 'textfield',
     '#size' => 12,
     '#required' => TRUE,
     '#default_value' => $set['training']['startat'],
     '#autocomplete_path' => FALSE,
+  );
+
+  $options = array(
+    '1:2:1:1' => t('Orignal, comment, original twice'),
+    '1:2:1' => t('Orignal, comment, original'),
+    '1' => t('Original once'),
+    '1:1' => t('Original twice'),
+    '1:1:1' => t('Original 3 times'),
+    '2' => t('Comment only'),
+  );
+
+  $form['tcadd']['play_mode'] = array(
+    '#type' => 'select',
+    '#title' => t('Audio play mode'),
+    '#options' => $options,
+    '#default_value' => $set['training']['play_mode'],
+    '#description' => t('Select the order of playing audio files for cards.'),
   );
 
   $form['lc'] = array(
@@ -1104,8 +1279,9 @@ function flashcard_config_form_submit($form, &$form_state) {
 
   $set['listing'] = $v['listing'];
   $set['training'] = $v['training'];
-  $set['training']['startat'] = $v['startat'];
-
+  foreach($v['tcadd'] as $k=>$i) {
+    $set['training'][$k] = $i;
+  }
 
   $set_key = 'flashcard_' . $user->uid . '_play';
   variable_set($set_key, $set);
@@ -1115,9 +1291,10 @@ function flashcard_config_form_submit($form, &$form_state) {
 /**
  * Function flashcard_progress_chart().
  */
-function flashcard_progress_chart() {
+function flashcard_progress_chart($deck) {
 
   global $user;
+  $did = $deck->did;
 
   $modpath = drupal_get_path('module', 'flashcard');
   drupal_add_css($modpath . '/css/pie.css');
@@ -1125,37 +1302,16 @@ function flashcard_progress_chart() {
   $stats = new stdClass();
   //count all cards:
   $rez = db_select('flashcard', 't')
-    ->fields('t', array('cid'))->execute();
+    ->fields('t', array('cid'))->condition('t.did', $did)->execute();
   $stats->total_cards = $rez->rowCount();
 
-  /*
-
-  $query = db_select('flashcard_user_data', 'd')
-    ->fields('d', array('cid'))
-    ->condition('d.uid', $user->uid);
-  $q = $query;
-  $rez = $q->condition('d.hide', 1)->execute();
-  $stats->hiden_cards = $rez->rowCount();
-
-  $q = $query;
-  $or = db_or()->condition('d.audioreview', 1)->condition('d.writereview', 1);
-  $rez = $q->condition('d.hide', 0)->condition($or)->execute();
-  $stats->ongoing_cards = $rez->rowCount();
-
-  $q = $query;
-  $rez = $q->condition('d.hide', 0)->condition('d.audioreview', 1)->execute();
-  $stats->to_audioreview = $rez->rowCount();
-
-  $q = $query;
-  $rez = $q->condition('d.hide', 0)->condition('d.writereview', 1)->execute();
-  $stats->to_writereview = $rez->rowCount();
-  */
-
   $query = db_select('flashcard_user_data', 't');
+  $query->leftJoin('flashcard', 'c', 't.cid=c.cid');
   $query->addExpression('SUM(t.hide)', 'hiden_cards');
   $query->addExpression('SUM(t.audioreview * (1-t.hide))', 'to_audioreview');
   $query->addExpression('SUM(t.writereview * (1-t.hide))', 'to_writereview');
   $query->addExpression('SUM(t.writereview * t.audioreview * (1-t.hide))', 'common');
+  $query->condition('c.did', $did);
 
   $rez = $query->execute();
   $r = $rez->fetchObject();
@@ -1173,4 +1329,17 @@ function flashcard_progress_chart() {
   );
 
   return $build;
+}
+
+/**
+ * Invoke hook_flashcard_deck_display().
+ */
+function flashcard_flashcard_deck_display(&$build) {
+  $actions = array();
+  $deck = $build['deck']['#deck'];
+  flashcard_flashcard_deck_actions($actions, $deck);
+  $build['links'] = array(
+    '#theme' => 'item_list',
+    '#items' => $actions,
+  );
 }
