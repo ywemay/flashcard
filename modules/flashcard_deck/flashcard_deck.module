@@ -52,12 +52,15 @@ function flashcard_deck_menu() {
 
   $items['flashcard/deck'] = array(
     'title' => 'Deck list',
-    'page callback' => 'flashcard_deck_list',
-    'access arguments' => array('flashcard deck view'),
+    //'page callback' => 'flashcard_deck_list',
+    //'access arguments' => array('flashcard deck view'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
   );
 
   $items['flashcard/deck/%flashcard_deck'] = array(
-    'title' => 'View deck',
+    //'title' => 'View deck',
+    'title callback' => 'flashcard_deck_title',
+    'title arguments' => array(2),
     'page callback' => 'flashcard_deck_display',
     'page arguments' => array(2),
     'access callback' => 'flashcard_deck_access',
@@ -72,14 +75,14 @@ function flashcard_deck_menu() {
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
 
-  $items['flashcard/deck/add'] = array(
+  $items['flashcard/deck_add'] = array(
     'title' => 'Create deck',
     'page callback' => 'flashcard_deck_form_wrapper',
     'page arguments' => array('create'),
     'access callback' => 'flashcard_deck_access',
     'access arguments' => array('add'),
-    'menu_name' => 'main-menu',
-    'weight' => 102,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 101,
   );
 
   $items['flashcard/deck/%flashcard_deck/edit'] = array(
@@ -88,7 +91,7 @@ function flashcard_deck_menu() {
     'page arguments' => array('edit', 2),
     'access callback' => 'flashcard_deck_access',
     'access arguments' => array('edit', 2),
-    'menu_name' => 'main-menu',
+    'type' => MENU_LOCAL_TASK,
     'weight' => 102,
   );
 
@@ -99,11 +102,17 @@ function flashcard_deck_menu() {
     'access callback' => 'flashcard_deck_access',
     'access arguments' => array('delete', 2),
     'type' => MENU_LOCAL_TASK,
-    'menu_name' => 'main-menu',
     'weight' => 103,
   );
 
   return $items;
+}
+
+/**
+ * Function flashcard_deck_title().
+ */
+function flashcard_deck_title($deck) {
+  return $deck->name;
 }
 
 /**
@@ -169,11 +178,11 @@ function flashcard_deck_save($deck) {
        'destination' => current_path(),
      ),
    );
-
+   /*
    foreach(module_implements('flashcard_deck_actions') as $module) {
      $f = $module . '_flashcard_deck_actions';
      $f($actions, $deck);
-   }
+   }*/
 
    if (flashcard_deck_access('edit', $deck)) {
      $actions['edit'] = l(t('Edit'), 'flashcard/deck/' . $deck->did . '/edit', $params);

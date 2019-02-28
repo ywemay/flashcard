@@ -5,6 +5,7 @@
   data:sound="<?php echo $card->sound; ?>"
   data:record="<?php echo $card->recording; ?>"
   data:play_plan="<?php echo $settings->play_mode; ?>"
+  data:playbackRate="<?php echo $settings->playback_rate; ?>"
   data:autoplay="<?php echo $settings->autoplay ? 1 : 0; ?>"
   data:next_path="<?php echo $card->next_path;  ?>">
   <div class="card"<?php echo $card->recording ? ' data:recording="' . $card->recording . '"':''; ?>>
@@ -32,6 +33,7 @@
       <span class="record" data:cid="<?php echo $card->cid; ?>">&ofcir;</span>
       <span class="play-rec <?php echo $card->classRecord; ?>" data:cid="<?php echo $card->cid; ?>">&rtrif;</span>
       <?php echo $card->delete_recording_link; ?>
+      <?php echo $card->scores; ?>
   </div>
 </div>
 <p>

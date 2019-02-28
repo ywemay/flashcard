@@ -1,0 +1,6 @@
+name = Flashcard MP3
+description = Helper designed to generate MP3 files suitable for portable devices
+core = 7.x
+package = Learning
+
+dependencies[] = flashcard

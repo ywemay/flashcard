@@ -1,3 +1,4 @@
+
 (function($) {
   Drupal.behaviors.flashcard = {
     audio: false,
@@ -5,11 +6,10 @@
     playPlan: [1,1,1],
     nowPlaying: 0,
     attach: function (context, settings) {
-      var timer;
-      var paused = false;
 
-      $('#gt-sel').hide();
       this.playPlan = $('.flashcard').attr('data:play_plan').split(':');
+
+      $('.original-input input').focus();
 
       $('.card .original').mouseout(function(){
         var txt = Drupal.behaviors.flashcard.getSelected();
@@ -28,60 +28,34 @@
         Drupal.behaviors.flashcard.keypress(e.which);
       });
 
+      var expectedVal = $('.flashcard').attr('data:original');
+      console.log(expectedVal);
+      $('.original-input input').keyup(function(){
+        if ($(this).val() == expectedVal || $(this).val() == "？") {
+          $('.card .original').removeClass('hidden');
+          $('.card .transcript').removeClass('hidden');
+        }
+        if ($(this).val() == expectedVal) {
+          $('.card .original').addClass('done');
+          setTimeout(function() {
+            if ($('.flashcard').attr('data:autoplay') == '1') {
+              Drupal.behaviors.flashcard.gotonext();
+            }
+          }, 3000);
+        }
+      });
       this.audioPlayNext();
     },
     keypress: function (keyCode) {
       var chr = String.fromCharCode(keyCode);
       var cid = $('.flashcard').attr('data:cid');
       switch(chr) {
-        case ('h'): //h
-          //this.nextcmd('h');
-          var el = document.getElementById('flashcard-toggle-hide-link-' + cid);
-          el.click();
-          break;
-        case 'j':
-        case 'n':
+        case '-':
           window.location = $('.flashcard').attr('data:next_path');
           break;
-        // Play again:
-        case 'p':  //P
+        case '=':  //P
           this.nowPlaying = 0;
           this.audioPlayNext();
-          break;
-        // Store for audio review
-        case 'a': //a
-          //this.nextcmd('a');
-          var el = document.getElementById('flashcard-toggle-audio-link-' + cid);
-          el.click();
-          break;
-        case 'w': //W
-          //this.nextcmd('w');
-          var el = document.getElementById('flashcard-toggle-write-link-' + cid);
-          el.click();
-          break;
-        case 'q': //e
-          //this.nextcmd('aw');
-          var el = document.getElementById('flashcard-toggle-audio-link-' + cid);
-          el.click();
-          var el = document.getElementById('flashcard-toggle-write-link-' + cid);
-          el.click();
-          break;
-        case 'e': //E
-          this.playEn();
-          break;
-        case 'g': //g
-          this.gtsel();
-          break;
-        case ' ':
-          this.togglePlay();
-          break;
-        case 'r':
-          var elclass = 'record';
-          var el = document.getElementsByClassName(elclass);
-          if (el[0]) {
-            var evnt = new Event('mouseup');
-            el[0].dispatchEvent(evnt);
-          }
           break;
         case '0':
         case '1':
@@ -124,9 +98,6 @@
           p.audio.play();
         }
       }
-      else if ($('.flashcard').attr('data:autoplay') == '1') {
-        p.gotonext();
-      }
     },
     gotonext: function () {
       window.location = $('.flashcard').attr('data:next_path');
@@ -153,7 +124,6 @@
       }
       return text;
     },
-
     gtsel: function () {
       var txt = this.getSelected();
       if (!txt) {

@@ -20,6 +20,14 @@ function flashcard_schema() {
         'size' => 'normal', // tiny / small / medium / normal / big
         'description' => 'Deck id',
       ),
+      'iid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'normal', // tiny / small / medium / normal / big
+        'description' => 'Image ID. Managed file image.',
+      ),
       'original' => array(
         'type' => 'varchar',
         'length' => 255,
@@ -45,6 +53,14 @@ function flashcard_schema() {
         'type' => 'varchar',
         'length' => 150,
         'description' => 'Sound file name',
+      ),
+      'sid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size ' => 'normal',
+        'description' => 'Sound file ID',
       ),
     ),
     'primary key' => array('cid'),
@@ -92,6 +108,14 @@ function flashcard_schema() {
         'default' => 0,
         'size' => 'tiny', // tiny / small / medium / normal / big
         'description' => 'Flag that shows if card is hidden or not.',
+      ),
+      'score' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'default' => 0,
+        'size' => 'tiny', // tiny / small / medium / normal / big
+        'description' => 'Self mark of level of knowing current card.',
       ),
       'writereview' => array(
         'type' => 'int',

@@ -6,7 +6,11 @@
         if (!sCid) {
           sCid = $(this).parent().parent('.flashcard').attr('data:cid');
         }
-        var sndFile = $('.recdir').val() + '/' + sCid + '.mp3?' + Math.floor(Math.random() * 1000);
+        var recDir = $('.recdir').val();
+        if (!recDir) {
+          recDir = $('.flashcard').attr('data:recdir');
+        }
+        var sndFile = recDir + '/' + sCid + '.mp3?' + Math.floor(Math.random() * 1000);
         var audio = new Audio(sndFile);
         audio.play();
       });
@@ -52,6 +56,7 @@
 
                 var oData = new FormData(audio_upload_form);
                 oData.append("audiofile", blob, iCid + ".ogg");
+                console.log('Uploading ' + iCid + ".ogg");
                 var oReq = new XMLHttpRequest();
                 oReq.open("POST", '/flashcard/audioupload', true);
                 oReq.onload = function(oEvent) {

@@ -1,13 +1,16 @@
 <?php
-$modpath = drupal_get_path('module', 'flashcard');
-$soundpath = $modpath . '/audio';
-$toReplace = array("/^\[(sound\:)/", "/\]$/");
-
 foreach($rows as $card) {
-  $card->sound = $soundpath . '/' . preg_replace($toReplace, '', trim($card->sound));
   $card->classRecord = $card->recording ? 'recording-show' : 'recording-hide';
 ?>
 <div class="flashcard flashcard-<?php echo $card->cid; ?>" data:cid="<?php echo $card->cid; ?>">
+  <?php if ($card->image_url) {?>
+  <div class="flashcard-image">
+  <?php
+    $out = theme('image_style', array('style_name' => 'thumbnail', 'path' => $card->uri));
+  echo $out;
+  ?>
+  </div>
+  <?php } ?>
   <div class="flashcard-original"><?php echo $card->original; ?></div>
   <div class="flashcard-play"><span class="flashcard-play-btn" data:sound="<?php echo $card->sound; ?>">&#9658;</span></div>
   <div class="flashcard-transcript"><?php echo $card->transcript; ?></div>
@@ -21,6 +24,13 @@ foreach($rows as $card) {
     <span class="play-rec <?php echo $card->classRecord; ?>">&rtrif;</span>
     <?php echo $card->delete_recording_link; ?>
   </div>
+<?php
+    if ($card->admin_links) {
+      print '<div class="flashcard-admin-links">';
+      print implode(' ', $card->admin_links);
+      print '</div>';
+    }
+?>
 </div>
 <?php
 }

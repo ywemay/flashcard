@@ -1,0 +1,240 @@
+<?php
+
+/**
+ * Invoke hook_permission().
+ */
+function flashcard_mp3_permission() {
+  return array(
+    'flashcard mp3' => t('Use flashcard mp3 generator'),
+  );
+}
+
+/**
+ * Invoke hook_menu().
+ */
+function flashcard_mp3_menu() {
+
+  $items['flashcard/deck/%flashcard_deck/mp3'] = array(
+    'title' => 'Generate MP3',
+    'description' => 'Script builder for linux command line to generate mp3 files for audio listenning',
+    'access arguments' => array('flashcard mp3'),
+    'page callback' => 'flashcard_mp3_form_wrapper',
+    'page arguments' => array(2),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 250,
+  );
+
+  return $items;
+}
+
+/**
+ * Function flashcard_mp3_form_wrapper().
+ */
+function flashcard_mp3_form_wrapper($deck) {
+  return drupal_get_form('flashcard_mp3_form', $deck);
+}
+
+/**
+ * Function flashcard_mp3_form().
+ */
+function flashcard_mp3_form($form, $form_state, $deck) {
+  $set = flashcard_get_user_settings();
+  $form['tc'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Learning'),
+    '#tree' => FALSE,
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+
+  $form['tc']['learning'] = array(
+    '#type' => 'checkboxes',
+    '#options' => array(
+      'play_audioreview' => t('Play cards marked for audioreview'),
+      'play_writereview' => t('Play cards marked for write review'),
+      'play_unseen_cards' => t('Play unseen cards'),
+      'play_hidden_cards' => t('Play hidden cards'),
+    ),
+    '#default_value' => $set['learning'],
+  );
+ 
+  $form['tcadd'] = array('#tree' => TRUE);
+
+  $form['tcadd']['startat'] = array(
+    '#title' => t('Start at card ID'),
+    '#type' => 'textfield',
+    '#size' => 12,
+    '#required' => TRUE,
+    '#default_value' => $set['learning']['startat'],
+    '#autocomplete_path' => FALSE,
+  );
+
+  $form['tcadd']['play_scored'] = array(
+    '#title' => t('Limit by score'),
+    '#type' => 'textfield',
+    '#size' => 9,
+    '#required' => TRUE,
+    '#default_value' => $set['learning']['play_scored'],
+    '#autocomplete_path' => FALSE,
+    '#description' => t('Use score from 0 to 5. Can provide a single number or a range in form of 0-5.'),
+  );
+
+  $options = array(
+    '1:2:1:1' => t('Orignal, comment, original twice'),
+    '1:2:1' => t('Orignal, comment, original'),
+    '1' => t('Original once'),
+    '1:1' => t('Original twice'),
+    '1:1:1' => t('Original 3 times'),
+    '2' => t('Comment only'),
+  );
+
+  $form['tcadd']['play_mode'] = array(
+    '#type' => 'select',
+    '#title' => t('Audio play mode'),
+    '#options' => $options,
+    '#default_value' => $set['learning']['play_mode'],
+    '#description' => t('Select the order of playing audio files for cards.'),
+  );
+
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Generate'),
+  );
+  return $form;
+}
+
+/**
+ * Function flashcard_mp3_form_submit().
+ */
+function flashcard_mp3_form_submit($form, $form_state) {
+  global $user;
+
+  $deck = $form_state['build_info']['args'][0];
+  $set = (object) $form_state['values']['learning'];
+  foreach ($form_state['values']['tcadd'] as $k => $v) {
+    $set->{$k} = $v;
+  }
+
+  $outdir = 'public://flashcard/mp3out/' . $deck->did; 
+  file_prepare_directory($outdir, FILE_CREATE_DIRECTORY);
+  $outdir = drupal_realpath($outdir);
+
+  $recdir = flashcard_user_recording_realpath();
+
+  /*
+  $query = db_select('flashcard_user_data', 'd');
+  $query->leftJoin('flashcard', 'c', 'd.cid=c.cid');
+  $query->fields('c', array('cid', 'sound'));
+  $query->condition('d.uid', $user->uid);
+  $query->condition('d.audioreview', 1);
+  $query->condition('c.did', $deck->did);
+   */
+  $query = db_select('flashcard', 't');
+  $query->fields('t', array('cid', 'sound'));
+  $query->leftJoin('flashcard_user_data', 'd', 't.cid=d.cid');
+
+  $and = flashcard_db_settings_condition($set);
+  $query->condition($and);
+  $query->condition('t.cid', $set->startat, '>=');
+  $query->condition('t.did', $deck->did);
+
+  $query->orderBy('t.cid');
+  $rez = $query->execute();
+
+  $modpath = drupal_get_path('module', 'flashcard');
+  $soundpath = $modpath . '/audio';
+
+  $toReplace = array("/^\[(sound\:)/", "/\]$/");
+  $rzArray = array();
+  $count = 0;
+
+  $set->play_mode = explode(":", $set->play_mode);
+  while($card = $rez->fetchObject()) {
+    $card->sound = preg_replace($toReplace, '', trim($card->sound));
+    $recordFile = $recdir . '/' . $card->cid . '.mp3';
+
+    $mp3parts = array(
+      //1 => file_exists($card->sound) ? $card->sound : FALSE,
+      //2 => file_exists($recordFile) ? $recordFile : FALSE,
+      1 => $card->sound,
+      2 => $recordFile,
+    );
+
+    foreach($set->play_mode as $k) {
+      if ($mp3parts[$k]) {
+        $rzArray[$count][] = $mp3parts[$k];
+      }
+    }
+    if (count($rzArray[$count]) >= 50){
+      $count++;
+    }
+  }
+
+  $batch = array(
+    'operations' => array(),
+    'finished' => 'flashcard_mp3_create_finished',
+    'title' => t('Create mp3 file for listenning.'),
+    'init_message' => t('Mp3 creation is starting'),
+    'process_message' => t('Processed @current out of @total.'),
+    'error_message' => t('Import has encountered an error.'),
+  );
+
+  $progress = 0;
+  $limit = 1;
+
+  array_map('unlink', glob($outdir ."/*.mp3"));
+
+  foreach($rzArray as $progress=>$files) {
+    $data = (object) array(
+      'files' => $files,
+      'soundpath' => $soundpath,
+      'outdir' => $outdir,
+    );
+    $batch['operations'][] = array('flashcard_mp3_create', array($data, $progress));
+  }
+
+  batch_set($batch);
+}
+
+/**
+ * Function flashcard_mp3_create().
+ *
+ * Executes the bash command to combine the mp3 parts into one single audio file
+ * for listenning.
+ */
+function flashcard_mp3_create($data, $progress, &$context) {
+  //$options ="-vn -ar 44100 -ac 2 -ab 192k -f mp3";
+  $options ="-vn -ar 22050 -ac 2 -ab 45k -f mp3";
+  
+  foreach($data->files as $k=>$fname){
+    if (dirname($fname) == '.') { 
+      $fname = $data->soundpath . '/' . $fname;
+    }
+    if (!file_exists($fname)) {
+      unset($data->files[$k]);
+    }
+  }
+  $outputFname = $data->outdir . '/' . sprintf("%'.04d", $progress) . '.mp3';
+  $command = 'cd "' . $data->soundpath . '" && ffmpeg -i "concat:' . implode("|", $data->files) . '" -acodec copy ' . $options . ' ' . $outputFname;
+  `$command`;
+  $context['message'] = 'Now creating ' . basename($outputFname) . ' - ' . $context['results'][0];
+}
+
+/**
+ * Function flashcard_mp3_creation_finished().
+ */
+function flashcard_mp3_creation_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message('Mp3 Creation is complete. Check private://flashcard/mp3out directory');
+  }
+  else {
+    $error_operation = reset($operations);
+    $message = t('An error occured while processing %error_operation %error_operation with arguments: @arguments', array(
+            '%error_operation' => $error_operation[0],
+            '@arguments' => print_r($error_operation[1], TRUE)
+    ));
+    drupal_set_message($message, 'error');
+  }
+  
+}
+

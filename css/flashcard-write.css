@@ -1,0 +1,10 @@
+.hidden {
+  display: none;
+}
+.original-input {
+  font-size: 24pt;
+}
+.done {
+  color: white;
+  background: green;
+}
